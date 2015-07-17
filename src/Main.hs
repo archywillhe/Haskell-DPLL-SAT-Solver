@@ -67,6 +67,9 @@ up (vs,cnf)
         vs' = vs \\ (fmap exv ucs)
         ucs = [ x | (x:xs) <- cnf, xs == []]
 
+dpllStart :: ([Variable], [Clause]) ->(Satisfiability,[VariableAssignement])
+dpllStart (vs,cnf) = process (vs, cnf) []
+
 
 readyForDPLL :: Exp  -> ([Variable], [Clause])
 readyForDPLL (WholeFormula a _ b) = ([1..a], makeCNF b)
@@ -87,5 +90,5 @@ l (Literal x) = x
 main :: IO ()
 main = do
     s <- getContents
-    print $ dpll ( readyForDPLL $ parseCNF (scanTokens s) )[]
+    print $ dpllStart ( readyForDPLL $ parseCNF (scanTokens s) )
     
