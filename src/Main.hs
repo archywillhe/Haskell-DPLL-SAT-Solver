@@ -17,58 +17,65 @@ exv l
     | l > 0 = l
     | l < 0 = -l
 
--- cnf With a certain Literal that yields True
+exvWithValue:: Literal -> VariableAssignement
+exvWithValue l 
+    | l > 0 = (l,True)
+    | l < 0 = (-l,False)
+
 assignTrueFor ::  [Clause] -> Variable -> [Clause]
 (assignTrueFor) cnf literal = [ (- literal) `delete` clause  | clause <- cnf, (not $ literal `elem` clause)]
---unit propagation
+
+hasConflict = (elem) []
+
 dpll :: ([Variable], [Clause]) -> [VariableAssignement] ->(Satisfiability,[VariableAssignement])
+dpll (vss@(x:vs),cnf) as
+    | hasConflict cnf = (UNSAT,[])
+    | let (result,list) = enterDecisionLevelWAL x, 
+        result == SAT = (result,list)
+    | otherwise = enterDecisionLevelWAL (-x)
+        -- enterDecisionLevelWAL: enter Decision Level With Assigned Literal
+        where enterDecisionLevelWAL theVariable = do_up_and_ple (vs, (cnf `assignTrueFor` theVariable)) (exvWithValue theVariable:as)
+dpll ([],_) as = (SAT,as)
 
-dpll (vss,cnf) as
-    | [] `elem` cnf = (UNSAT,[])
-    | [] == vss = (SAT,as)
-    | let (result,list) = process (vs, (cnf `assignTrueFor` x)) ((x,True):as), result == SAT = (SAT,list)
-    | otherwise = process (vs, (cnf `assignTrueFor` (-x))) ((x,False):as)
-        where (x:vs) = vss
-
--- process: do Boolean Constraint Propagation && pure literal elmination
-process :: ([Variable], [Clause]) -> [VariableAssignement] ->(Satisfiability,[VariableAssignement])
-process (vs,cnf) as = dpll (vs',cnf') as
+-- do_up_and_ple: do unit propagation && pure literal elmination
+do_up_and_ple :: ([Variable], [Clause]) -> [VariableAssignement] ->(Satisfiability,[VariableAssignement])
+do_up_and_ple (vs,cnf) as = dpll (vs',cnf') as'
     where 
-        (vs',cnf') = bcp_and_ple (vs,cnf) ([],[]) True False
-        bcp_and_ple x previous ple_done up_done
-            | not ple_done = bcp_and_ple (ple x) x True False --secondly we ple
-            | x == previous = x     -- lastly we check if it is the same; 
-                                    --if not we go on with the recursive loop 
-            | not up_done =  bcp_and_ple (up x) x False True --firstly we do up
-            | otherwise = x
+        ((vs',cnf'),as') = up_and_ple ((vs,cnf),as)
+        up_and_ple x = check_if_ple_gets_same_result (ple x') x'
+            where x' = (up (ple x)) 
+        check_if_ple_gets_same_result x previous
+            | x == previous = x
+            | otherwise = up_and_ple x
 
 -- pure literal elmination
-ple (vs,cnf) = (vs',cnf')
+ple ((vs,cnf),as) = ((vs',cnf'),as')
     where
         cnf' = foldl (assignTrueFor) cnf pls
         vs' = vs \\ (fmap exv pls)
-        pls = fpureLiterals ls [] 
-        ls = concat cnf
-        fpureLiterals (x:xs) o = fpureLiterals xs o'
+        as' = as ++ (fmap exvWithValue pls)
+        pls = nubBy (==) $ find_pure_literals literals [] 
+        literals = concat cnf
+        find_pure_literals (x:xs) o = find_pure_literals xs o'
             where 
                 o'
-                    | (x `elem` ls) && ( -x `elem` ls) = o
-                    | (-x `elem` ls) = -x:o
+                    | (x `elem` literals) && ( -x `elem` literals) = o
+                    | (-x `elem` literals) = -x:o
                     | otherwise = x:o
-        fpureLiterals [] o = o
+        find_pure_literals [] o = o
 
 -- unit propagation
-
-up (vs,cnf)
-    | length ucs == 0 = (vs',cnf')
-    | otherwise = up (vs',cnf')
+up ((vs,cnf),as)
+    | length ucs == 0 = ((vs',cnf'),as)
+    | otherwise = up ((vs',cnf'),as')
     where
         cnf' = foldl (assignTrueFor) cnf ucs
+        as' = as ++ (fmap exvWithValue ucs)
         vs' = vs \\ (fmap exv ucs)
         ucs = [ x | (x:xs) <- cnf, xs == []]
 
 dpllStart :: ([Variable], [Clause]) ->(Satisfiability,[VariableAssignement])
-dpllStart (vs,cnf) = process (vs, cnf) []
+dpllStart (vs,cnf) = do_up_and_ple (vs, cnf) []
 
 
 readyForDPLL :: Exp  -> ([Variable], [Clause])
