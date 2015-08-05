@@ -49,7 +49,9 @@ do_up_and_ple (vs,cnf) as = dpll (vs',cnf') as'
             | otherwise = up_and_ple x
 
 -- pure literal elmination
-ple ((vs,cnf),as) = ((vs',cnf'),as')
+ple ((vs,cnf),as)
+    | length pls == 0 = ((vs,cnf),as)
+    | otherwise = up ((vs',cnf'),as')
     where
         cnf' = foldl (assignTrueFor) cnf pls
         vs' = vs \\ (fmap exv pls)
@@ -66,7 +68,7 @@ ple ((vs,cnf),as) = ((vs',cnf'),as')
 
 -- unit propagation
 up ((vs,cnf),as)
-    | length ucs == 0 = ((vs',cnf'),as)
+    | length ucs == 0 = ((vs,cnf),as)
     | otherwise = up ((vs',cnf'),as')
     where
         cnf' = foldl (assignTrueFor) cnf ucs
